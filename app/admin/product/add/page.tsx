@@ -34,6 +34,12 @@ interface PreviewImage {
   preview: string;
 }
 
+interface VariantStock {
+  sizeId: string;
+  colorId: string;
+  stock: number;
+}
+
 export default function AdminPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -43,7 +49,7 @@ export default function AdminPage() {
   const [gender, setGender] = useState("");
   const [quantity, setQuantity] = useState("");
   const [images, setImages] = useState<ImageFile[]>([]);
-  const [sizes, setSizes] = useState<string[]>([]);
+  const [sizes, setSizes] = useState<string[]>(["01", "02", "03", "04", "05"]);
   const [colors, setColors] = useState<{ name: string; code: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -58,6 +64,12 @@ export default function AdminPage() {
   const [additionalPreviews, setAdditionalPreviews] = useState<PreviewImage[]>(
     []
   );
+  const [variants, setVariants] = useState<VariantStock[]>([]);
+
+  // 사이즈와 컬러 선택 시 재고 입력 UI를 위한 상태
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [variantStock, setVariantStock] = useState(0);
 
   const handleOutfitImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -132,6 +144,31 @@ export default function AdminPage() {
     setColors(colors.filter((c) => c.name !== name));
   };
 
+  // 재고 추가 함수
+  const handleAddVariant = () => {
+    if (!selectedSize || !colorName || variantStock <= 0) {
+      alert("사이즈, 컬러, 재고량을 모두 입력해주세요.");
+      return;
+    }
+
+    // 새로운 컬러 추가
+    if (!colors.find((c) => c.name === colorName)) {
+      setColors((prev) => [...prev, { name: colorName, code: colorCode }]);
+    }
+
+    const newVariant: VariantStock = {
+      sizeId: selectedSize,
+      colorId: colorCode, // colorCode를 colorId로 사용
+      stock: variantStock,
+    };
+
+    setVariants((prev) => [...prev, newVariant]);
+    setSelectedSize("");
+    setColorName("");
+    setColorCode("#000000");
+    setVariantStock(0);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -150,12 +187,9 @@ export default function AdminPage() {
         category,
         subCategory,
         gender,
-        quantity: Number(quantity) || 0,
-        sizes: sizes.map((size) => ({ name: size })),
-        colors: colors.map((color) => ({ name: color.name, code: color.code })),
+        variants,
+        colors, // 컬러 정보도 함께 전송
       };
-
-      console.log("전송할 데이터:", productData);
 
       const res = await fetch("/api/admin/products", {
         method: "POST",
@@ -171,48 +205,31 @@ export default function AdminPage() {
       }
 
       const data = await res.json();
-      console.log("서버 응답:", data);
+      const { product } = data;
 
-      if (!data.success || !data.product?.id) {
-        throw new Error("제품 ID를 받지 못했습니다.");
-      }
-
-      const productId = data.product.id;
-
-      // 2. 이미지 업로드
-      const uploadImage = async (file: File, type: string, order: number) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("type", type);
-        formData.append("productId", productId);
-        formData.append("order", order.toString());
-
-        const uploadRes = await fetch("/api/admin/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!uploadRes.ok) {
-          const errorData = await uploadRes.json();
-          throw new Error(errorData.error || "이미지 업로드 실패");
+      // 2. 각 variant별로 이미지 업로드
+      for (const variant of product.variants) {
+        // outfit 이미지
+        if (outfitImage) {
+          await uploadImage(outfitImage, "OUTFIT", 0, product.id, variant.id);
         }
-      };
-
-      // 필수 이미지 업로드
-      if (outfitImage) {
-        await uploadImage(outfitImage, "OUTFIT", 0);
-      }
-      if (productImage) {
-        await uploadImage(productImage, "PRODUCT", 1);
-      }
-
-      // 추가 이미지 업로드
-      for (let i = 0; i < additionalImages.length; i++) {
-        await uploadImage(additionalImages[i], "ADDITIONAL", i + 2);
+        // product 이미지
+        if (productImage) {
+          await uploadImage(productImage, "PRODUCT", 1, product.id, variant.id);
+        }
+        // 추가 이미지들
+        for (let i = 0; i < additionalImages.length; i++) {
+          await uploadImage(
+            additionalImages[i],
+            "ADDITIONAL",
+            i + 2,
+            product.id,
+            variant.id
+          );
+        }
       }
 
       alert("제품이 성공적으로 등록되었습니다.");
-      // 폼 초기화
       resetForm();
     } catch (error: any) {
       console.error("제품 등록 에러:", error);
@@ -220,6 +237,34 @@ export default function AdminPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 이미지 업로드 함수
+  const uploadImage = async (
+    file: File,
+    type: string,
+    order: number,
+    productId: string,
+    variantId: string
+  ) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", type);
+    formData.append("productId", productId);
+    formData.append("variantId", variantId);
+    formData.append("order", order.toString());
+
+    const uploadRes = await fetch("/api/admin/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      const errorData = await uploadRes.json();
+      throw new Error(errorData.error || "이미지 업로드 실패");
+    }
+
+    return uploadRes.json();
   };
 
   // 폼 초기화 함수
@@ -240,6 +285,10 @@ export default function AdminPage() {
     setProductPreview(null);
     setAdditionalPreviews([]);
     setErrors({});
+    setVariants([]);
+    setSelectedSize("");
+    setSelectedColor("");
+    setVariantStock(0);
   };
 
   // 폼 유효성 검사 함수
@@ -549,71 +598,84 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 사이즈 선택 섹션 */}
-        <div>
-          <label className="block text-sm font-medium mb-2">사이즈</label>
-          <div className="flex flex-wrap gap-2">
-            {["01", "02", "03", "04", "05"].map((size) => (
-              <Button
-                key={size}
-                type="button"
-                size="sm"
-                variant={sizes.includes(size) ? "flat" : "light"}
-                onClick={() =>
-                  sizes.includes(size)
-                    ? handleRemoveSize(size)
-                    : handleAddSize(size)
-                }
-              >
-                {size}
-              </Button>
-            ))}
-          </div>
-        </div>
+        {/* 재고 관리 섹션 추가 */}
+        <div className="space-y-4 mt-6">
+          <h3 className="text-lg font-medium">재고 관리</h3>
+          <div className="flex gap-4 items-end">
+            <Select
+              label="사이즈"
+              value={selectedSize}
+              onChange={(e) => setSelectedSize(e.target.value)}
+            >
+              {sizes.map((size) => (
+                <SelectItem key={size} value={size}>
+                  {size}
+                </SelectItem>
+              ))}
+            </Select>
 
-        {/* 컬러 선택 섹션 */}
-        <div>
-          <label className="block text-sm font-medium mb-2">컬러</label>
-          <div className="flex flex-wrap gap-4 items-center">
-            {colors.map(({ name, code }) => (
-              <div key={name} className="flex items-center gap-2">
-                <div
-                  className="w-6 h-6 rounded-full border border-gray-300"
-                  style={{ backgroundColor: code }}
-                />
-                <span className="text-sm">{name}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveColor(name)}
-                  className="text-red-500"
-                >
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
             <div className="flex gap-2">
               <Input
                 type="text"
-                placeholder="컬러명"
+                label="컬러명"
+                placeholder="예: 블랙"
                 value={colorName}
                 onChange={(e) => setColorName(e.target.value)}
-                size="sm"
-                className="w-24"
               />
               <Input
                 type="color"
+                label="컬러"
                 value={colorCode}
                 onChange={(e) => setColorCode(e.target.value)}
-                size="sm"
                 className="w-24"
               />
-              <Button type="button" size="sm" onClick={handleAddColor}>
-                추가
-              </Button>
             </div>
-            {errors.colors && (
-              <p className="text-red-500 text-sm w-full">{errors.colors}</p>
-            )}
+
+            <Input
+              type="number"
+              label="재고량"
+              value={variantStock.toString()}
+              onChange={(e) => setVariantStock(parseInt(e.target.value))}
+              min={0}
+            />
+
+            <Button onClick={handleAddVariant}>재고 추가</Button>
+          </div>
+
+          {/* 추가된 재고 목록 */}
+          <div className="mt-4">
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th>사이즈</th>
+                  <th>컬러</th>
+                  <th>재고량</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {variants.map((variant, index) => (
+                  <tr key={index}>
+                    <td>{variant.sizeId}</td>
+                    <td>
+                      {colors.find((c) => c.code === variant.colorId)?.name}
+                    </td>
+                    <td>{variant.stock}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        color="danger"
+                        onClick={() => {
+                          setVariants(variants.filter((_, i) => i !== index));
+                        }}
+                      >
+                        삭제
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

@@ -1,5 +1,7 @@
+import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { join } from "path";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   try {
@@ -7,40 +9,49 @@ export async function POST(req: Request) {
     const file = formData.get("file") as File;
     const type = formData.get("type") as string;
     const productId = formData.get("productId") as string;
+    const variantId = formData.get("variantId") as string;
+    const order = parseInt(formData.get("order") as string);
 
-    if (!file || !type || !productId) {
-      return Response.json(
+    if (!file || !type || !productId || !variantId) {
+      return NextResponse.json(
         { error: "필수 정보가 누락되었습니다." },
         { status: 400 }
       );
     }
 
     // 디렉토리 생성
-    const productDir = path.join(
+    const uploadDir = join(
       process.cwd(),
       "public",
       "images",
-      "product",
+      "products",
       productId
     );
-    const typeDir = path.join(productDir, type.toLowerCase());
-    await mkdir(typeDir, { recursive: true });
+    await mkdir(uploadDir, { recursive: true });
 
     // 파일 저장
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const filename = `${Date.now()}_${file.name}`;
-    const filepath = path.join(typeDir, filename);
-    await writeFile(filepath, buffer);
+    const fileName = `${type.toLowerCase()}_${Date.now()}_${file.name}`;
+    const fullPath = join(uploadDir, fileName);
 
-    // DB에 저장할 상대 경로
-    const relativePath = `/images/product/${productId}/${type.toLowerCase()}/${filename}`;
+    await writeFile(fullPath, buffer);
 
-    return Response.json({ url: relativePath });
-  } catch (error) {
-    console.error("Upload error:", error);
-    return Response.json(
-      { error: "파일 업로드 중 오류가 발생했습니다." },
+    // DB에 이미지 정보 저장
+    const image = await prisma.variantImage.create({
+      data: {
+        url: `/images/products/${productId}/${fileName}`,
+        type: type as "OUTFIT" | "PRODUCT" | "ADDITIONAL",
+        order,
+        variantId,
+      },
+    });
+
+    return NextResponse.json({ success: true, image });
+  } catch (error: any) {
+    console.error("이미지 업로드 에러:", error);
+    return NextResponse.json(
+      { error: error.message || "이미지 업로드에 실패했습니다." },
       { status: 500 }
     );
   }

@@ -4,17 +4,53 @@ import { notFound } from "next/navigation";
 import Header from "@/app/components/Header";
 import Footer from "@/app/components/Footer";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ShoppingCartIcon } from "@heroicons/react/24/outline";
+import { use } from "react";
+import {
+  Modal,
+  ModalContent,
+  ModalBody,
+  useDisclosure,
+  Button,
+  Input,
+} from "@nextui-org/react";
+import Link from "next/link";
+
 interface Props {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 interface AccordionProps {
   title: string;
   children: React.ReactNode;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  discountPrice: number | null;
+  material: string;
+  sizeInfo: string;
+  images: {
+    id: number;
+    url: string;
+  }[];
+  sizes: {
+    id: number;
+    name: string;
+    stock: number;
+  }[];
+  relatedProducts: {
+    id: string;
+    name: string;
+    color: string;
+    imageUrl: string;
+  }[];
 }
 
 const Accordion = ({ title, children }: AccordionProps) => {
@@ -40,20 +76,52 @@ const Accordion = ({ title, children }: AccordionProps) => {
 };
 
 export default function ProductDetailPage({ params }: Props) {
-  const productId = parseInt(params.id);
+  const { id } = use(params);
+  const productId = parseInt(id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [quantity, setQuantity] = useState(1);
+  const [mounted, setMounted] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [loading, setLoading] = useState(true);
 
-  // TODO: 실제 데이터베이스에서 제품 정보를 가져오는 로직으로 대체
-  if (isNaN(productId) || productId < 1) {
-    notFound();
+  useEffect(() => {
+    setMounted(true);
+    const fetchProduct = async () => {
+      try {
+        const response = await fetch(`/api/products/${id}`);
+        if (!response.ok) throw new Error("상품을 불러올 수 없습니다.");
+        const data = await response.json();
+        setProduct(data);
+      } catch (error) {
+        console.error("상품 로딩 실패:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
+
+  const handleAddToCart = () => {
+    if (!selectedSize) return;
+    onOpen();
+  };
+
+  const handleQuantityChange = (value: string) => {
+    const num = parseInt(value);
+    if (num > 0 && num <= 10) {
+      setQuantity(num);
+    }
+  };
+
+  if (!mounted || loading) {
+    return <div>Loading...</div>;
   }
 
-  // 임시 이미지 데이터
-  const images = [
-    `/images/product/${productId}/outfit.jpg`,
-    `/images/product/${productId}/product.jpg`,
-    `/images/product/${productId}/detail1.jpg`,
-    `/images/product/${productId}/detail2.jpg`,
-  ];
+  if (!product) {
+    notFound();
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -64,13 +132,13 @@ export default function ProductDetailPage({ params }: Props) {
             {/* 왼쪽 이미지 섹션 (2/3) */}
             <div className="w-2/3 overflow-y-auto pr-4 scrollbar-hide">
               <div className="grid grid-cols-2 gap-4">
-                {images.map((image, index) => (
+                {product.images.map((image, index) => (
                   <div
                     key={index}
                     className="aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden"
                   >
                     <Image
-                      src={image}
+                      src={image.url}
                       alt={`Product image ${index + 1}`}
                       width={600}
                       height={800}
@@ -85,14 +153,19 @@ export default function ProductDetailPage({ params }: Props) {
             <div className="w-1/3 overflow-y-auto h-full pr-4 scrollbar-hide">
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <h1 className="text-lg">Legacy Single Wool Blazer (Black)</h1>
+                  <h1 className="text-lg">{product.name}</h1>
                   <div className="space-y-2">
                     <div className="flex gap-1 items-center">
-                      <span className="text-default-400 line-through text-sm">
-                        248,000
-                      </span>
+                      {product.discountPrice && (
+                        <span className="text-default-400 line-through text-sm">
+                          {product.price.toLocaleString()}
+                        </span>
+                      )}
                       <span className="text-sm text-default-600">
-                        KRW 223,200
+                        KRW{" "}
+                        {(
+                          product.discountPrice || product.price
+                        ).toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -102,89 +175,163 @@ export default function ProductDetailPage({ params }: Props) {
                   <div className="space-y-3">
                     <h2 className="text-sm">사이즈</h2>
                     <div className="flex gap-2">
-                      {["01", "02", "03", "04"].map((size) => (
+                      {product.sizes.map((size) => (
                         <button
-                          key={size}
-                          className="px-2 py-1 border border-white rounded hover:border-gray-800 transition-colors"
+                          key={size.id}
+                          onClick={() => setSelectedSize(size.name)}
+                          className={`px-2 py-1 border rounded transition-colors ${
+                            selectedSize === size.name
+                              ? "border-gray-800 bg-gray-800 text-white"
+                              : "border-white hover:border-gray-800"
+                          }`}
                         >
-                          <span className="text-sm">{size}</span>
+                          <span className="text-sm">{size.name}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <button className="flex-1 bg-black text-white py-3 rounded hover:bg-gray-800 transition-colors">
-                      구매하기
+                    <button
+                      className={`flex-1 py-3 rounded border border-black transition-all ${
+                        selectedSize
+                          ? "bg-black text-white hover:bg-white hover:text-black"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed border-gray-200"
+                      }`}
+                      disabled={!selectedSize}
+                    >
+                      {selectedSize ? "구매하기" : "사이즈를 선택하세요"}
                     </button>
-                    <button className="px-4 py-3 border rounded text-xs hover:border-black transition-colors">
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={!selectedSize}
+                      className="px-4 py-3 border rounded text-xs hover:border-black transition-colors"
+                    >
                       <ShoppingCartIcon className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* 제품 상세 정보 아코디언들 */}
+                  {/* 제품 상세 정보 아코디언 */}
                   <div className="space-y-0">
                     <Accordion title="제품 설명">
-                      <pre className="text-sm text-gray-600 leading-relaxed">
-                        A/O.에서 심혈을 기울여 선보이는 비즈니스 수트 Legacy
-                        Set-up을 소개합니다 본 제품은 팬츠와 셋업으로 착용
-                        가능한 Legacy Single Wool Blazer입니다 Legacy라는
-                        이름처럼 전통적인 수트 디자인을 A/O.만의 모던한
-                        실루엣으로 표현했습니다 차분하게 몸을 감싸는 편안한
-                        핏으로 약간의 체형 변화와 트렌드의 영향을 받지 않는
-                        수트를 만들고자 했습니다 OEKO-TEX 인증을 거친 부드러운
-                        텍스처의 울블렌드 원단을 사용했으며, 라펠, 자켓 전면부,
-                        포켓에 스티치(호시)를 넣어 라펠부터 밑단까지의 부드러운
-                        곡선과 볼륨감을 강조하였습니다 스티치(호시)는 라펠과
-                        포켓을 들뜨지 않고 안착시켜주는 역할을 합니다 섬세한
-                        테일러링을 바탕으로 제작한 만큼 10년 뒤에 꺼내 입어도
-                        클래식하고 모던한 감각이 유지되게끔 많은 노력을 기울인
-                        수트이며, 단품으로도 좀 더 가볍게 착용하실 수 있습니다
-                        *OEKO-TEX® STANDARD 100이란? 유럽의 섬유 및 가죽
-                        제품에서 가장 엄격하고 널리 인정받는 안전 기준 중 하나인
-                        OEKO-TEX® STANDARD 100은 소비자들이 안심할 수 있는
-                        제품을 보증하는 글로벌 인증입니다 국제 섬유 및 가죽
-                        생태학 연구 및 실험 협회가 발급하는 인증으로 유해 물질이
-                        없는 제품임을 보증하며, 원자재부터 완성된 제품까지 모든
-                        생산 단계에서 유해 물질에 대한 검사를 요구합니다 특히,
-                        피부와 직접 접촉하는 섬유 제품에 대한 유해 물질 관리
-                        기준은 더욱 엄격하게 적용됩니다 *상세 이미지가 실제
-                        컬러와 가장 유사합니다 미묘한 컬러를 사용하는 A/O.
-                        의복의 특성상 원단의 결과 보는 방향, 형광등 빛과 자연광
-                        아래서 다른 톤으로 보일 수 있습니다 본 이미지는 자연광
-                        아래 보이는 톤을 기준으로 실내에서 보이는 것보다 약간
-                        밝게 표현되었습니다 *Standard fit *main pocket 2 / chest
-                        pocket 1 / inside pocket 2 *겉감 : Wool 30%, Polyester
-                        70% / 안감 : Polyester 100% *Horn Button ( 천연 소뿔
-                        단추를 사용하여 미세한 흠집이 있을 수 있습니다 )
-                      </pre>
-                    </Accordion>
+                      <div className="text-sm text-gray-600 leading-relaxed space-y-6">
+                        <div>
+                          <h3 className="font-medium mb-2">제품 설명</h3>
+                          <pre className="whitespace-pre-wrap">
+                            {product.description}
+                          </pre>
+                        </div>
 
-                    <Accordion title="소재">
-                      <p className="text-sm text-gray-600">
-                        겉감: WOOL 90%, NYLON 10%
-                        <br />
-                        안감: POLYESTER 100%
-                      </p>
-                    </Accordion>
+                        <div>
+                          <h3 className="font-medium mb-2">소재</h3>
+                          <p>{product.material}</p>
+                        </div>
 
-                    <Accordion title="사이즈 정보">
-                      <p className="text-sm text-gray-600">
-                        01: 어깨 42 가슴 49 소매 62 총장 71
-                        <br />
-                        02: 어깨 43 가슴 51 소매 63 총장 72
-                        <br />
-                        03: 어깨 44 가슴 53 소매 64 총장 73
-                        <br />
-                        04: 어깨 45 가슴 55 소매 65 총장 74
-                      </p>
+                        <div>
+                          <h3 className="font-medium mb-2">사이즈 정보</h3>
+                          <p>{product.sizeInfo}</p>
+                        </div>
+                      </div>
                     </Accordion>
                   </div>
+
+                  {/* 제품 설명 아코디언 다음에 추가 */}
+                  {product.relatedProducts.length > 0 && (
+                    <div className="pt-8 border-t">
+                      <h3 className="text-sm font-medium mb-4">다른 컬러</h3>
+                      <div className="grid grid-cols-3 gap-2">
+                        {product.relatedProducts.map((related) => (
+                          <Link
+                            key={related.id}
+                            href={`/products/${related.id}`}
+                            className="group"
+                          >
+                            <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2">
+                              <Image
+                                src={related.imageUrl}
+                                alt={`${related.name} - ${related.color}`}
+                                width={120}
+                                height={120}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              {related.color}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* 장바구니 모달 */}
+        <Modal
+          isOpen={isOpen}
+          onClose={onClose}
+          placement="auto"
+          classNames={{
+            base: "w-[400px]",
+            header: "border-b-[1px]",
+            body: "py-4",
+          }}
+        >
+          <ModalContent>
+            <ModalBody>
+              <h2>장바구니에 추가되었습니다.</h2>
+              <div className="flex gap-4">
+                <div className="w-24 h-32 bg-gray-100 rounded-lg overflow-hidden">
+                  <Image
+                    src={`/images/product/${productId}/outfit.jpg`}
+                    alt="Product outfit"
+                    width={96}
+                    height={128}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <h3 className="text-sm font-medium">
+                    Legacy Single Wool Blazer (Black)
+                  </h3>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-600">
+                      Size: {selectedSize}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm">수량:</p>
+                      <Input
+                        type="number"
+                        value={quantity.toString()}
+                        onChange={(e) => handleQuantityChange(e.target.value)}
+                        min={1}
+                        max={10}
+                        className="w-20"
+                        size="sm"
+                      />
+                    </div>
+                    <p className="text-sm font-medium">KRW 223,200</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <Button
+                  color="primary"
+                  className="w-full bg-black text-white"
+                  onClick={onClose}
+                >
+                  장바구니로 이동
+                </Button>
+                <Button className="w-full" variant="light" onClick={onClose}>
+                  쇼핑 계속하기
+                </Button>
+              </div>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
       </main>
       <Footer />
     </div>

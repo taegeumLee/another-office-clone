@@ -32,52 +32,68 @@ model User {
 }
 
 model Product {
-  id            String         @id @default(cuid())
+  id            String           @id @default(cuid())
   name          String
   description   String
   price         Int
-  images        ProductImage[] // 모든 이미지
-  category      Category // enum type
+  category      Category
   subCategory   String
-  gender        Gender // enum type
-  sizes         ProductSize[] // Size 관계 수정
-  colors        Color[]
-  quantity      Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  gender        Gender
+  variants      ProductVariant[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   orderItems    OrderItem[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
 }
 
-model ProductImage {
-  id        String    @id @default(cuid())
-  url       String
-  order     Int
-  type      ImageType // OUTFIT, PRODUCT, ADDITIONAL
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+model ProductVariant {
+  id        String         @id @default(cuid())
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  size      Size           @relation(fields: [sizeId], references: [id])
+  sizeId    String
+  color     Color          @relation(fields: [colorId], references: [id])
+  colorId   String
+  stock     Int            @default(0)
+  images    VariantImage[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
+  @@unique([productId, sizeId, colorId])
   @@index([productId])
+  @@index([sizeId])
+  @@index([colorId])
+}
+
+model VariantImage {
+  id             String         @id @default(cuid())
+  url            String
+  order          Int
+  type           ImageType
+  productVariant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variantId      String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([variantId])
 }
 
 model Size {
-  id        String        @id @default(cuid())
-  name      String        @unique
-  products  ProductSize[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id        String           @id @default(cuid())
+  name      String           @unique
+  products  ProductVariant[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }
 
 model Color {
-  id        String    @id @default(cuid())
+  id        String           @id @default(cuid())
   name      String
   code      String
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  products  ProductVariant[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }
 
 model Order {
@@ -148,21 +164,6 @@ model EmailVerification {
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
-}
-
-model ProductSize {
-  id        String   @id @default(cuid())
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  productId String
-  size      Size     @relation(fields: [sizeId], references: [id])
-  sizeId    String
-  stock     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([productId, sizeId])
-  @@index([productId])
-  @@index([sizeId])
 }
 
 enum Role {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -22,41 +22,30 @@ type ViewType = "outfit" | "product";
 type GridSize = 4 | 6;
 
 interface Product {
-  id: number;
+  id: string;
   name: string;
-  outfitImageUrl: string;
-  productImageUrl: string;
   price: number;
-  createdAt: Date;
-  discount: number;
+  createdAt: string;
+  variants: {
+    id: string;
+    images: {
+      id: string;
+      url: string;
+      type: string;
+    }[];
+  }[];
 }
-
-// 더미 데이터 생성
-const generateDummyProducts = (count: number): Product[] => {
-  return Array(count)
-    .fill(null)
-    .map((_, index) => ({
-      id: index + 1,
-      name: `Legacy Single Wool Blazer (Black)`,
-      outfitImageUrl: `/images/product/${index + 1}/outfit.jpg`,
-      productImageUrl: `/images/product/${index + 1}/product.jpg`,
-      price: Math.floor(Math.random() * 150000) + 50000, // 50000~200000 사이 랜덤 가격
-      createdAt: new Date(Date.now() - index * 30 * 24 * 60 * 60 * 1000), // 최근 30일 내의 랜덤 날짜
-      discount: Math.floor(Math.random() * 10) + 1, // 1~10 사이 랜덤 할인율
-    }));
-};
 
 export default function NewPage() {
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [viewType, setViewType] = useState<ViewType>("product");
   const [gridSize, setGridSize] = useState<GridSize>(4);
-
-  // 더미 데이터 생성
-  const [products] = useState<Product[]>(generateDummyProducts(24));
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // 이미지 호버 상태를 관리하는 객체
   const [hoveredProducts, setHoveredProducts] = useState<{
-    [key: number]: boolean;
+    [key: string]: boolean;
   }>({});
 
   const sortOptions = {
@@ -66,12 +55,33 @@ export default function NewPage() {
     popular: "인기상품",
   };
 
+  useEffect(() => {
+    fetchProducts();
+  }, [sortOption]);
+
+  const fetchProducts = async () => {
+    try {
+      const params = new URLSearchParams({
+        sort: sortOption,
+      });
+      const res = await fetch(`/api/products?${params}`);
+      const data = await res.json();
+      setProducts(data.products);
+    } catch (error) {
+      console.error("제품 로드 실패:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 정렬된 상품 목록 가져오기
   const getSortedProducts = () => {
     return [...products].sort((a, b) => {
       switch (sortOption) {
         case "newest":
-          return b.createdAt.getTime() - a.createdAt.getTime();
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
         case "priceLow":
           return a.price - b.price;
         case "priceHigh":
@@ -92,20 +102,33 @@ export default function NewPage() {
     return price.toLocaleString("ko-KR");
   };
 
+  // 이미지 URL 가져오기
+  const getImageUrl = (product: Product, type: "OUTFIT" | "PRODUCT") => {
+    const firstVariant = product.variants[0];
+    if (!firstVariant) return null;
+
+    const image = firstVariant.images.find((img) => img.type === type);
+    return image?.url;
+  };
+
   // 호버 상태 토글 함수
-  const handleMouseEnter = useCallback((productId: number) => {
+  const handleMouseEnter = useCallback((productId: string) => {
     setHoveredProducts((prev) => ({
       ...prev,
       [productId]: true,
     }));
   }, []);
 
-  const handleMouseLeave = useCallback((productId: number) => {
+  const handleMouseLeave = useCallback((productId: string) => {
     setHoveredProducts((prev) => ({
       ...prev,
       [productId]: false,
     }));
   }, []);
+
+  if (isLoading) {
+    return <div>로딩 중...</div>;
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -194,12 +217,14 @@ export default function NewPage() {
                     <Image
                       src={
                         hoveredProducts[product.id]
-                          ? viewType === "outfit"
-                            ? product.productImageUrl
-                            : product.outfitImageUrl
-                          : viewType === "outfit"
-                          ? product.outfitImageUrl
-                          : product.productImageUrl
+                          ? getImageUrl(
+                              product,
+                              viewType === "outfit" ? "PRODUCT" : "OUTFIT"
+                            ) || ""
+                          : getImageUrl(
+                              product,
+                              viewType === "outfit" ? "OUTFIT" : "PRODUCT"
+                            ) || ""
                       }
                       width={300}
                       height={400}
@@ -209,20 +234,9 @@ export default function NewPage() {
                   </CardBody>
                   <CardFooter className="flex flex-row justify-between items-start px-3 py-2">
                     <p className="text-sm">{product.name}</p>
-                    <div className="flex items-end flex-col gap-1">
-                      <span className="text-xs text-default-400 line-through">
-                        {formatPrice(product.price)}
-                      </span>
-                      <span className="text-xs">
-                        KRW{" "}
-                        {formatPrice(
-                          Math.floor(
-                            product.price -
-                              product.price * (product.discount / 100)
-                          )
-                        )}
-                      </span>
-                    </div>
+                    <span className="text-sm">
+                      KRW {formatPrice(product.price)}
+                    </span>
                   </CardFooter>
                 </Card>
               </Link>
