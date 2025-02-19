@@ -28,6 +28,11 @@ interface Product {
   createdAt: string;
   variants: {
     id: string;
+    stock: number;
+    size: {
+      id: string;
+      name: string;
+    };
     images: {
       id: string;
       url: string;
@@ -232,11 +237,42 @@ export default function NewPage() {
                       className="w-full h-full object-cover aspect-[3/4] transition-opacity duration-300"
                     />
                   </CardBody>
-                  <CardFooter className="flex flex-row justify-between items-start px-3 py-2">
-                    <p className="text-sm">{product.name}</p>
-                    <span className="text-sm">
-                      KRW {formatPrice(product.price)}
-                    </span>
+                  <CardFooter className="flex flex-col gap-2 px-3 py-2">
+                    <div className="flex justify-between items-start w-full">
+                      <p className="text-sm">{product.name}</p>
+                      <span className="text-sm">
+                        KRW {formatPrice(product.price)}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      {[
+                        ...new Set(
+                          product.variants
+                            .filter((v) => v.size && v.size.name)
+                            .map((v) => v.size.name)
+                        ),
+                      ]
+                        .sort()
+                        .map((sizeName) => {
+                          const variant = product.variants.find(
+                            (v) => v.size?.name === sizeName
+                          );
+                          const hasStock = variant?.stock && variant.stock > 0;
+
+                          return (
+                            <span
+                              key={sizeName}
+                              className={`text-xs px-2 py-1 border rounded ${
+                                hasStock
+                                  ? "border-gray-800"
+                                  : "border-gray-300 text-gray-300 line-through"
+                              }`}
+                            >
+                              {sizeName}
+                            </span>
+                          );
+                        })}
+                    </div>
                   </CardFooter>
                 </Card>
               </Link>

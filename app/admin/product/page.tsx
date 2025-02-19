@@ -88,13 +88,48 @@ export default function ProductsPage() {
   };
 
   const getMainImage = (variants: Product["variants"]) => {
-    const firstVariant = variants[0];
-    if (!firstVariant) return null;
+    // 모든 variant의 이미지를 순회하면서 OUTFIT 타입의 이미지를 찾음
+    for (const variant of variants) {
+      const outfitImage = variant.images?.find((img) => img.type === "OUTFIT");
+      if (outfitImage?.url) {
+        return outfitImage.url;
+      }
+    }
 
-    const outfitImage = firstVariant.images.find(
-      (img) => img.type === "OUTFIT"
-    );
-    return outfitImage?.url || null;
+    // OUTFIT 이미지가 없으면 PRODUCT 이미지를 찾음
+    for (const variant of variants) {
+      const productImage = variant.images?.find(
+        (img) => img.type === "PRODUCT"
+      );
+      if (productImage?.url) {
+        return productImage.url;
+      }
+    }
+
+    return null;
+  };
+
+  const handleDelete = async (productId: string) => {
+    if (!confirm("정말 이 제품을 삭제하시겠습니까?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/products/${productId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("제품 삭제에 실패했습니다.");
+      }
+
+      // 성공적으로 삭제되면 목록에서 제거
+      setProducts(products.filter((product) => product.id !== productId));
+      alert("제품이 삭제되었습니다.");
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("제품 삭제 중 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -239,6 +274,7 @@ export default function ProductsPage() {
                     width={50}
                     height={50}
                     className="object-cover rounded"
+                    unoptimized
                   />
                 )}
               </TableCell>
@@ -280,17 +316,18 @@ export default function ProductsPage() {
               </TableCell>
               <TableCell>
                 <div className="flex gap-2">
-                  <Link href={`/admin/product/edit/${product.id}`}>
-                    <Button size="sm">수정</Button>
-                  </Link>
+                  <Button
+                    as={Link}
+                    href={`/admin/product/edit/${product.id}`}
+                    size="sm"
+                    color="primary"
+                  >
+                    수정
+                  </Button>
                   <Button
                     size="sm"
                     color="danger"
-                    onClick={() => {
-                      if (confirm("정말 삭제하시겠습니까?")) {
-                        // TODO: 삭제 API 호출
-                      }
-                    }}
+                    onClick={() => handleDelete(product.id)}
                   >
                     삭제
                   </Button>

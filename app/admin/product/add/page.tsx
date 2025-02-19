@@ -6,6 +6,7 @@ import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useDropzone } from "react-dropzone";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import { useRouter } from "next/navigation";
 
 interface ImageFile {
   file: File;
@@ -41,6 +42,7 @@ interface VariantStock {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -230,7 +232,8 @@ export default function AdminPage() {
       }
 
       alert("제품이 성공적으로 등록되었습니다.");
-      resetForm();
+      router.push("/admin/product");
+      router.refresh();
     } catch (error: any) {
       console.error("제품 등록 에러:", error);
       alert(error.message || "제품 등록 중 오류가 발생했습니다.");
