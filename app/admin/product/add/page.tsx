@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button, Input, Select, SelectItem, Textarea } from "@nextui-org/react";
-import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useDropzone } from "react-dropzone";
-import Skeleton from "react-loading-skeleton";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import "react-loading-skeleton/dist/skeleton.css";
 import { useRouter } from "next/navigation";
 
@@ -49,7 +47,6 @@ export default function AdminPage() {
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [gender, setGender] = useState("");
-  const [quantity, setQuantity] = useState("");
   const [images, setImages] = useState<ImageFile[]>([]);
   const [sizes, setSizes] = useState<string[]>(["01", "02", "03", "04", "05"]);
   const [colors, setColors] = useState<{ name: string; code: string }[]>([]);
@@ -278,7 +275,6 @@ export default function AdminPage() {
     setCategory("");
     setSubCategory("");
     setGender("");
-    setQuantity("");
     setSizes([]);
     setColors([]);
     setOutfitImage(null);
@@ -459,15 +455,6 @@ export default function AdminPage() {
             </SelectItem>
           </Select>
         </div>
-
-        <Input
-          type="number"
-          label="수량"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          min="0"
-          required
-        />
 
         {/* 이미지 업로드 섹션 */}
         <div className="space-y-6">

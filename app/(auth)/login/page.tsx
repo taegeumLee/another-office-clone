@@ -4,6 +4,7 @@ import { Button, Input } from "@nextui-org/react";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -16,21 +17,19 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "로그인에 실패했습니다.");
+      if (result?.error) {
+        setError("이메일 또는 비밀번호가 일치하지 않습니다.");
+        return;
       }
 
-      // 로그인 성공 시 토큰 저장 및 리다이렉트
-      localStorage.setItem("token", data.token);
       router.push("/");
+      router.refresh();
     } catch (err: any) {
       setError(err.message);
     }

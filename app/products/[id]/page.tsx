@@ -16,6 +16,8 @@ import {
   Input,
 } from "@nextui-org/react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 interface Props {
   params: Promise<{
@@ -51,6 +53,11 @@ interface Product {
     color: string;
     imageUrl: string;
   }[];
+  variants: {
+    color: {
+      name: string;
+    };
+  }[];
 }
 
 const Accordion = ({ title, children }: AccordionProps) => {
@@ -76,6 +83,8 @@ const Accordion = ({ title, children }: AccordionProps) => {
 };
 
 export default function ProductDetailPage({ params }: Props) {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const { id } = use(params);
   const productId = parseInt(id);
   const [product, setProduct] = useState<Product | null>(null);
@@ -103,9 +112,38 @@ export default function ProductDetailPage({ params }: Props) {
     fetchProduct();
   }, [id]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedSize) return;
-    onOpen();
+
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/cart/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productId: product!.id,
+          size: selectedSize,
+          color: product!.variants[0]?.color?.name || "",
+          quantity: quantity,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "장바구니 추가 실패");
+      }
+
+      onOpen();
+    } catch (error) {
+      console.error("장바구니 추가 실패:", error);
+      alert("장바구니에 추가하는 중 오류가 발생했습니다.");
+    }
   };
 
   const handleQuantityChange = (value: string) => {
@@ -286,17 +324,16 @@ export default function ProductDetailPage({ params }: Props) {
               <div className="flex gap-4">
                 <div className="w-24 h-32 bg-gray-100 rounded-lg overflow-hidden">
                   <Image
-                    src={`/images/product/${productId}/outfit.jpg`}
-                    alt="Product outfit"
+                    src={product.images.find((img) => img.url)?.url || ""}
+                    alt={product.name}
                     width={96}
                     height={128}
                     className="w-full h-full object-cover"
+                    unoptimized
                   />
                 </div>
                 <div className="flex-1 space-y-3">
-                  <h3 className="text-sm font-medium">
-                    Legacy Single Wool Blazer (Black)
-                  </h3>
+                  <h3 className="text-sm font-medium">{product.name}</h3>
                   <div className="space-y-1">
                     <p className="text-sm text-gray-600">
                       Size: {selectedSize}
@@ -313,7 +350,12 @@ export default function ProductDetailPage({ params }: Props) {
                         size="sm"
                       />
                     </div>
-                    <p className="text-sm font-medium">KRW 223,200</p>
+                    <p className="text-sm font-medium">
+                      KRW{" "}
+                      {(
+                        product.discountPrice || product.price
+                      ).toLocaleString()}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -321,7 +363,10 @@ export default function ProductDetailPage({ params }: Props) {
                 <Button
                   color="primary"
                   className="w-full bg-black text-white"
-                  onClick={onClose}
+                  onClick={() => {
+                    onClose();
+                    router.push("/cart");
+                  }}
                 >
                   장바구니로 이동
                 </Button>

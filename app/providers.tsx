@@ -3,6 +3,7 @@
 import { NextUIProvider } from "@nextui-org/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SessionProvider } from "next-auth/react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -17,4 +18,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }
 
   return <NextUIProvider navigate={router.push}>{children}</NextUIProvider>;
+}
+
+export function NextAuthProvider({ children }: { children: React.ReactNode }) {
+  return <SessionProvider>{children}</SessionProvider>;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Category, Gender } from "@prisma/client";
-import { rm, rmdir } from "fs/promises";
+import { rmdir } from "fs/promises";
 import { join } from "path";
 
 export async function GET(

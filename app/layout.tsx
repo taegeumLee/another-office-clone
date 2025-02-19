@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Providers } from "./providers";
 import "./globals.css";
+import { NextAuthProvider } from "@/app/providers";
 
 export const metadata: Metadata = {
   title: "ANOTHER OFFICE",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <NextAuthProvider>
+          <Providers>{children}</Providers>
+        </NextAuthProvider>
       </body>
     </html>
   );
