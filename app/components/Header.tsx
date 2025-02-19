@@ -15,43 +15,13 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-}
+import { useSession, signOut } from "next-auth/react";
 
 export default function Header() {
-  const [user, setUser] = useState<User | null>(null);
-  const pathname = usePathname();
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [cartItemCount, setCartItemCount] = useState(0);
-  const { data: session } = useSession();
-
-  const checkUser = async () => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const res = await fetch("/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await res.json();
-        if (data.user) {
-          setUser(data.user);
-        }
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
-      }
-    }
-  };
-
-  useEffect(() => {
-    checkUser();
-  }, [pathname]);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const pathname = usePathname();
+  const { data: session, status } = useSession();
 
   // 장바구니 아이템 수 가져오기
   const fetchCartItemCount = async () => {
@@ -71,14 +41,9 @@ export default function Header() {
     }
   }, [session]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
-  };
-
   return (
-    <div className="relative">
-      <Navbar maxWidth="full" className="py-4">
+    <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
+      <Navbar maxWidth="2xl">
         <NavbarBrand className="basis-[80px]">
           <Link href="/" className="font-bold text-xl">
             <div className="flex flex-col leading-tight relative">
@@ -477,14 +442,14 @@ export default function Header() {
             </div>
           </NavbarItem>
           <NavbarItem>
-            {user ? (
+            {session ? (
               <Button
                 variant="light"
                 className="group relative p-0 h-auto bg-transparent data-[hover=true]:bg-transparent"
-                onClick={handleLogout}
+                onClick={() => signOut()}
               >
                 <span className="text-sm text-gray-600 group-hover:opacity-0 transition-opacity duration-200">
-                  {user.name}님 환영합니다
+                  {session.user?.name || session.user?.email}님 환영합니다
                 </span>
                 <span className="absolute inset-0 flex items-center justify-center text-sm text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                   로그아웃

@@ -107,42 +107,6 @@ export default function AdminPage() {
     setAdditionalPreviews(newPreviews);
   };
 
-  const removeImage = (index: number) => {
-    setImages((prev) => {
-      const newImages = [...prev];
-      URL.revokeObjectURL(newImages[index].preview);
-      newImages.splice(index, 1);
-      return newImages;
-    });
-  };
-
-  const handleAddSize = (size: string) => {
-    if (!sizes.includes(size)) {
-      setSizes([...sizes, size]);
-    }
-  };
-
-  const handleRemoveSize = (size: string) => {
-    setSizes(sizes.filter((s) => s !== size));
-  };
-
-  const handleAddColor = () => {
-    if (!colorName.trim()) {
-      setErrors((prev) => ({ ...prev, colors: "컬러명을 입력해주세요" }));
-      return;
-    }
-    if (!colors.find((c) => c.name === colorName)) {
-      setColors([...colors, { name: colorName, code: colorCode }]);
-      setColorName("");
-      setColorCode("#000000");
-      setErrors((prev) => ({ ...prev, colors: undefined }));
-    }
-  };
-
-  const handleRemoveColor = (name: string) => {
-    setColors(colors.filter((c) => c.name !== name));
-  };
-
   // 재고 추가 함수
   const handleAddVariant = () => {
     if (!selectedSize || !colorName || variantStock <= 0) {

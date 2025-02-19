@@ -86,7 +86,6 @@ export default function ProductDetailPage({ params }: Props) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const { id } = use(params);
-  const productId = parseInt(id);
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
@@ -112,6 +111,7 @@ export default function ProductDetailPage({ params }: Props) {
         if (!response.ok) throw new Error("상품을 불러올 수 없습니다.");
         const data = await response.json();
         setProduct(data);
+        document.title = `${data.name} | ANOTHER OFFICE`;
       } catch (error) {
         console.error("상품 로딩 실패:", error);
       } finally {
@@ -120,6 +120,10 @@ export default function ProductDetailPage({ params }: Props) {
     };
 
     fetchProduct();
+
+    return () => {
+      document.title = "ANOTHER OFFICE";
+    };
   }, [id]);
 
   const checkExistingItem = async () => {

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const sort = searchParams.get("sort") || "newest";
 
     const products = await prisma.product.findMany({
       include: {
