@@ -91,7 +91,17 @@ export default function ProductDetailPage({ params }: Props) {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [mounted, setMounted] = useState(false);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isConfirmOpen,
+    onOpen: onConfirmOpen,
+    onClose: onConfirmClose,
+  } = useDisclosure();
+  const {
+    isOpen: isSuccessOpen,
+    onOpen: onSuccessOpen,
+    onClose: onSuccessClose,
+  } = useDisclosure();
+  const [existingItem, setExistingItem] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -112,6 +122,21 @@ export default function ProductDetailPage({ params }: Props) {
     fetchProduct();
   }, [id]);
 
+  const checkExistingItem = async () => {
+    try {
+      const response = await fetch("/api/cart");
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.items.some(
+        (item: any) =>
+          item.product.id === product!.id && item.size === selectedSize
+      );
+    } catch (error) {
+      console.error("장바구니 확인 실패:", error);
+      return false;
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!selectedSize) return;
 
@@ -120,6 +145,17 @@ export default function ProductDetailPage({ params }: Props) {
       return;
     }
 
+    const exists = await checkExistingItem();
+    if (exists) {
+      setExistingItem(true);
+      onConfirmOpen();
+      return;
+    }
+
+    await addToCart();
+  };
+
+  const addToCart = async () => {
     try {
       const response = await fetch("/api/cart/add", {
         method: "POST",
@@ -139,7 +175,7 @@ export default function ProductDetailPage({ params }: Props) {
         throw new Error(error.error || "장바구니 추가 실패");
       }
 
-      onOpen();
+      onSuccessOpen();
     } catch (error) {
       console.error("장바구니 추가 실패:", error);
       alert("장바구니에 추가하는 중 오류가 발생했습니다.");
@@ -210,43 +246,61 @@ export default function ProductDetailPage({ params }: Props) {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="space-y-3">
-                    <h2 className="text-sm">사이즈</h2>
-                    <div className="flex gap-2">
-                      {product.sizes.map((size) => (
-                        <button
-                          key={size.id}
-                          onClick={() => setSelectedSize(size.name)}
-                          className={`px-2 py-1 border rounded transition-colors ${
-                            selectedSize === size.name
-                              ? "border-gray-800 bg-gray-800 text-white"
-                              : "border-white hover:border-gray-800"
-                          }`}
-                        >
-                          <span className="text-sm">{size.name}</span>
-                        </button>
-                      ))}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium">사이즈</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {product.sizes.map((size) => {
+                        const isOutOfStock = size.stock === 0;
+                        return (
+                          <button
+                            key={size.id}
+                            onClick={() =>
+                              !isOutOfStock && setSelectedSize(size.name)
+                            }
+                            disabled={isOutOfStock}
+                            className={`px-3 py-2 rounded-lg border text-sm transition-colors
+                              ${
+                                selectedSize === size.name
+                                  ? "border-black bg-black text-white"
+                                  : isOutOfStock
+                                  ? "border-gray-200 text-gray-300 line-through cursor-not-allowed"
+                                  : "border-gray-300 hover:border-gray-400"
+                              }
+                            `}
+                          >
+                            {size.name}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      className={`flex-1 py-3 rounded border border-black transition-all ${
-                        selectedSize
-                          ? "bg-black text-white hover:bg-white hover:text-black"
-                          : "bg-gray-200 text-gray-400 cursor-not-allowed border-gray-200"
-                      }`}
-                      disabled={!selectedSize}
-                    >
-                      {selectedSize ? "구매하기" : "사이즈를 선택하세요"}
-                    </button>
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={!selectedSize}
-                      className="px-4 py-3 border rounded text-xs hover:border-black transition-colors"
-                    >
-                      <ShoppingCartIcon className="w-4 h-4" />
-                    </button>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        className={`flex-1 py-3 rounded border border-black transition-all ${
+                          selectedSize
+                            ? "bg-black text-white hover:bg-white hover:text-black"
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed border-gray-200"
+                        }`}
+                        disabled={!selectedSize}
+                      >
+                        {selectedSize ? "구매하기" : "사이즈를 선택하세요"}
+                      </button>
+                      <button
+                        onClick={handleAddToCart}
+                        disabled={!selectedSize}
+                        className="px-4 py-3 border rounded text-xs hover:border-black transition-colors"
+                      >
+                        <ShoppingCartIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button className="text-sm text-gray-600 hover:text-black transition-colors">
+                        문의하기
+                      </button>
+                    </div>
                   </div>
 
                   {/* 제품 상세 정보 아코디언 */}
@@ -254,20 +308,9 @@ export default function ProductDetailPage({ params }: Props) {
                     <Accordion title="제품 설명">
                       <div className="text-sm text-gray-600 leading-relaxed space-y-6">
                         <div>
-                          <h3 className="font-medium mb-2">제품 설명</h3>
                           <pre className="whitespace-pre-wrap">
                             {product.description}
                           </pre>
-                        </div>
-
-                        <div>
-                          <h3 className="font-medium mb-2">소재</h3>
-                          <p>{product.material}</p>
-                        </div>
-
-                        <div>
-                          <h3 className="font-medium mb-2">사이즈 정보</h3>
-                          <p>{product.sizeInfo}</p>
                         </div>
                       </div>
                     </Accordion>
@@ -307,17 +350,36 @@ export default function ProductDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {/* 장바구니 모달 */}
-        <Modal
-          isOpen={isOpen}
-          onClose={onClose}
-          placement="auto"
-          classNames={{
-            base: "w-[400px]",
-            header: "border-b-[1px]",
-            body: "py-4",
-          }}
-        >
+        {/* 이미 장바구니에 있는 경우 확인 모달 */}
+        <Modal isOpen={isConfirmOpen} onClose={onConfirmClose}>
+          <ModalContent>
+            <ModalBody className="py-6">
+              <p className="text-center mb-4">
+                이미 장바구니에 담긴 상품입니다.
+                <br />
+                그래도 추가하시겠습니까?
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  color="primary"
+                  className="bg-black"
+                  onClick={() => {
+                    onConfirmClose();
+                    addToCart();
+                  }}
+                >
+                  확인
+                </Button>
+                <Button variant="light" onClick={onConfirmClose}>
+                  취소
+                </Button>
+              </div>
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+
+        {/* 장바구니 추가 성공 모달 */}
+        <Modal isOpen={isSuccessOpen} onClose={onSuccessClose}>
           <ModalContent>
             <ModalBody>
               <h2>장바구니에 추가되었습니다.</h2>
@@ -364,13 +426,17 @@ export default function ProductDetailPage({ params }: Props) {
                   color="primary"
                   className="w-full bg-black text-white"
                   onClick={() => {
-                    onClose();
+                    onSuccessClose();
                     router.push("/cart");
                   }}
                 >
                   장바구니로 이동
                 </Button>
-                <Button className="w-full" variant="light" onClick={onClose}>
+                <Button
+                  className="w-full"
+                  variant="light"
+                  onClick={onSuccessClose}
+                >
                   쇼핑 계속하기
                 </Button>
               </div>

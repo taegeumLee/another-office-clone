@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface User {
   id: string;
@@ -26,6 +27,8 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const pathname = usePathname();
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [cartItemCount, setCartItemCount] = useState(0);
+  const { data: session } = useSession();
 
   const checkUser = async () => {
     const token = localStorage.getItem("token");
@@ -49,6 +52,24 @@ export default function Header() {
   useEffect(() => {
     checkUser();
   }, [pathname]);
+
+  // 장바구니 아이템 수 가져오기
+  const fetchCartItemCount = async () => {
+    try {
+      const response = await fetch("/api/cart");
+      if (!response.ok) return;
+      const data = await response.json();
+      setCartItemCount(data.items.length);
+    } catch (error) {
+      console.error("장바구니 정보 로드 실패:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (session) {
+      fetchCartItemCount();
+    }
+  }, [session]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -476,8 +497,19 @@ export default function Header() {
             )}
           </NavbarItem>
           <NavbarItem>
-            <Button as={Link} href="/cart" isIconOnly variant="light">
+            <Button
+              as={Link}
+              href="/cart"
+              isIconOnly
+              variant="light"
+              className="relative"
+            >
               <ShoppingCartIcon className="w-5 h-5" />
+              {cartItemCount > 0 && (
+                <span className="absolute top-1 right-1 bg-black text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
             </Button>
           </NavbarItem>
         </NavbarContent>

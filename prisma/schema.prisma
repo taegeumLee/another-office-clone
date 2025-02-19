@@ -107,6 +107,10 @@ model Order {
   paymentId       String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  name            String
+  phone           String
+  address         String
+  detailAddress   String
 }
 
 model OrderItem {

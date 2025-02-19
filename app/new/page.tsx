@@ -244,34 +244,37 @@ export default function NewPage() {
                         KRW {formatPrice(product.price)}
                       </span>
                     </div>
-                    <div className="flex gap-1">
-                      {[
-                        ...new Set(
-                          product.variants
-                            .filter((v) => v.size && v.size.name)
-                            .map((v) => v.size.name)
-                        ),
-                      ]
-                        .sort()
-                        .map((sizeName) => {
-                          const variant = product.variants.find(
-                            (v) => v.size?.name === sizeName
-                          );
-                          const hasStock = variant?.stock && variant.stock > 0;
+                    <div className="flex flex-col items-start gap-1">
+                      <div className="flex gap-1">
+                        {[
+                          ...new Set(
+                            product.variants
+                              .filter((v) => v.size && v.size.name)
+                              .map((v) => v.size.name)
+                          ),
+                        ]
+                          .sort()
+                          .map((sizeName) => {
+                            const variant = product.variants.find(
+                              (v) => v.size?.name === sizeName
+                            );
+                            const hasStock =
+                              variant?.stock && variant.stock > 0;
 
-                          return (
-                            <span
-                              key={sizeName}
-                              className={`text-xs px-2 py-1 border rounded ${
-                                hasStock
-                                  ? "border-gray-800"
-                                  : "border-gray-300 text-gray-300 line-through"
-                              }`}
-                            >
-                              {sizeName}
-                            </span>
-                          );
-                        })}
+                            return (
+                              <span
+                                key={sizeName}
+                                className={`text-xs px-2 py-1 border rounded ${
+                                  hasStock
+                                    ? "border-gray-800"
+                                    : "border-gray-300 text-gray-300 line-through"
+                                }`}
+                              >
+                                {sizeName}
+                              </span>
+                            );
+                          })}
+                      </div>
                     </div>
                   </CardFooter>
                 </Card>
