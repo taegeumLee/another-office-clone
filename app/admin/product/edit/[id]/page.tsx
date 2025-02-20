@@ -32,7 +32,6 @@ interface ProductData {
     color: {
       id: string;
       name: string;
-      code: string;
     };
     stock: number;
     images: {
@@ -64,7 +63,6 @@ export default function EditProductPage({ params }: Props) {
   const [additionalImages, setAdditionalImages] = useState<File[]>([]);
   const [selectedSize, setSelectedSize] = useState("");
   const [colorName, setColorName] = useState("");
-  const [colorCode, setColorCode] = useState("#000000");
   const [variantStock, setVariantStock] = useState(0);
   const [availableSizes] = useState<string[]>(["01", "02", "03", "04", "05"]);
   const [outfitImageUrl, setOutfitImageUrl] = useState<string>("");
@@ -156,18 +154,14 @@ export default function EditProductPage({ params }: Props) {
           id: variant.id,
           stock: Number(variant.stock),
           size: {
-            id: variant.size.name,
             name: variant.size.name,
           },
           color: {
-            id: variant.color.code,
             name: variant.color.name,
-            code: variant.color.code,
           },
         })),
       };
 
-      // 먼저 제품 정보 업데이트
       const res = await fetch(`/api/admin/products/${id}`, {
         method: "PUT",
         headers: {
@@ -273,9 +267,8 @@ export default function EditProductPage({ params }: Props) {
         name: selectedSize,
       },
       color: {
-        id: colorCode,
+        id: colorName,
         name: colorName,
-        code: colorCode,
       },
       stock: variantStock,
       images: [...existingImages],
@@ -284,12 +277,21 @@ export default function EditProductPage({ params }: Props) {
     setVariants([...variants, newVariant]);
     setSelectedSize("");
     setColorName("");
-    setColorCode("#000000");
     setVariantStock(0);
   };
 
   // variant 삭제 함수
-  const handleRemoveVariant = (variantId: string) => {
+  const handleRemoveVariant = async (variantId: string) => {
+    // 임시 variant인 경우 (새로 추가했다가 삭제하는 경우)
+    if (variantId.startsWith("temp-")) {
+      setVariants(variants.filter((v) => v.id !== variantId));
+      return;
+    }
+
+    // 실제 DB에 있는 variant인 경우
+    const confirmed = confirm("이 사이즈/컬러 조합을 삭제하시겠습니까?");
+    if (!confirmed) return;
+
     setVariants(variants.filter((v) => v.id !== variantId));
   };
 
@@ -393,13 +395,6 @@ export default function EditProductPage({ params }: Props) {
                 value={colorName}
                 onChange={(e) => setColorName(e.target.value)}
                 className="flex-1"
-              />
-              <Input
-                type="color"
-                label="컬러"
-                value={colorCode}
-                onChange={(e) => setColorCode(e.target.value)}
-                className="w-24"
               />
             </div>
 

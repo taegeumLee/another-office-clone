@@ -49,11 +49,10 @@ export default function AdminPage() {
   const [gender, setGender] = useState("");
   const [images, setImages] = useState<ImageFile[]>([]);
   const [sizes, setSizes] = useState<string[]>(["01", "02", "03", "04", "05"]);
-  const [colors, setColors] = useState<{ name: string; code: string }[]>([]);
+  const [colors, setColors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [colorName, setColorName] = useState("");
-  const [colorCode, setColorCode] = useState("#000000");
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({});
   const [outfitImage, setOutfitImage] = useState<File | null>(null);
   const [productImage, setProductImage] = useState<File | null>(null);
@@ -107,28 +106,45 @@ export default function AdminPage() {
     setAdditionalPreviews(newPreviews);
   };
 
-  // 재고 추가 함수
-  const handleAddVariant = () => {
-    if (!selectedSize || !colorName || variantStock <= 0) {
-      alert("사이즈, 컬러, 재고량을 모두 입력해주세요.");
+  // 컬러 추가 함수
+  const handleAddColor = () => {
+    if (!colorName.trim()) {
+      alert("컬러명을 입력해주세요.");
       return;
     }
 
-    // 새로운 컬러 추가
-    if (!colors.find((c) => c.name === colorName)) {
-      setColors((prev) => [...prev, { name: colorName, code: colorCode }]);
+    if (colors.includes(colorName)) {
+      alert("이미 존재하는 컬러입니다.");
+      return;
+    }
+
+    setColors([...colors, colorName]);
+    setSelectedColor(colorName);
+    setColorName("");
+  };
+
+  // 재고 추가 함수 수정
+  const handleAddVariant = () => {
+    if (!selectedSize || !colorName || variantStock <= 0) {
+      alert("컬러명, 사이즈, 재고량을 모두 입력해주세요.");
+      return;
+    }
+
+    // 중복 사이즈 체크
+    const isDuplicate = variants.some((v) => v.sizeId === selectedSize);
+    if (isDuplicate) {
+      alert("이미 존재하는 사이즈입니다.");
+      return;
     }
 
     const newVariant: VariantStock = {
       sizeId: selectedSize,
-      colorId: colorCode, // colorCode를 colorId로 사용
+      colorId: colorName,
       stock: variantStock,
     };
 
-    setVariants((prev) => [...prev, newVariant]);
+    setVariants([...variants, newVariant]);
     setSelectedSize("");
-    setColorName("");
-    setColorCode("#000000");
     setVariantStock(0);
   };
 
@@ -150,8 +166,11 @@ export default function AdminPage() {
         category,
         subCategory,
         gender,
-        variants,
-        colors, // 컬러 정보도 함께 전송
+        variants: variants.map((variant) => ({
+          sizeId: variant.sizeId,
+          colorId: variant.colorId,
+          stock: variant.stock,
+        })),
       };
 
       const res = await fetch("/api/admin/products", {
@@ -170,27 +189,39 @@ export default function AdminPage() {
       const data = await res.json();
       const { product } = data;
 
-      // 2. 각 variant별로 이미지 업로드
-      for (const variant of product.variants) {
-        // outfit 이미지
-        if (outfitImage) {
-          await uploadImage(outfitImage, "OUTFIT", 0, product.id, variant.id);
-        }
-        // product 이미지
-        if (productImage) {
-          await uploadImage(productImage, "PRODUCT", 1, product.id, variant.id);
-        }
-        // 추가 이미지들
-        for (let i = 0; i < additionalImages.length; i++) {
-          await uploadImage(
+      // 첫 번째 variant의 ID만 사용
+      const firstVariantId = product.variants[0]?.id;
+      if (!firstVariantId) {
+        throw new Error("Variant creation failed");
+      }
+
+      // 2. 이미지 업로드 - 첫 번째 variant에만 이미지 연결
+      const uploadPromises = [];
+
+      if (outfitImage) {
+        uploadPromises.push(
+          uploadImage(outfitImage, "OUTFIT", 0, product.id, firstVariantId)
+        );
+      }
+      if (productImage) {
+        uploadPromises.push(
+          uploadImage(productImage, "PRODUCT", 1, product.id, firstVariantId)
+        );
+      }
+      for (let i = 0; i < additionalImages.length; i++) {
+        uploadPromises.push(
+          uploadImage(
             additionalImages[i],
             "ADDITIONAL",
             i + 2,
             product.id,
-            variant.id
-          );
-        }
+            firstVariantId
+          )
+        );
       }
+
+      // 모든 이미지 업로드를 병렬로 처리
+      await Promise.all(uploadPromises);
 
       alert("제품이 성공적으로 등록되었습니다.");
       router.push("/admin/product");
@@ -203,7 +234,7 @@ export default function AdminPage() {
     }
   };
 
-  // 이미지 업로드 함수
+  // uploadImage 함수도 수정
   const uploadImage = async (
     file: File,
     type: string,
@@ -211,106 +242,49 @@ export default function AdminPage() {
     productId: string,
     variantId: string
   ) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("type", type);
-    formData.append("productId", productId);
-    formData.append("variantId", variantId);
-    formData.append("order", order.toString());
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
+      formData.append("productId", productId);
+      formData.append("variantId", variantId);
+      formData.append("order", order.toString());
 
-    const uploadRes = await fetch("/api/admin/upload", {
-      method: "POST",
-      body: formData,
-    });
+      const uploadRes = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (!uploadRes.ok) {
-      const errorData = await uploadRes.json();
-      throw new Error(errorData.error || "이미지 업로드 실패");
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json();
+        throw new Error(errorData.error || "이미지 업로드 실패");
+      }
+
+      return uploadRes.json();
+    } catch (error) {
+      console.error("Image upload error:", error);
+      throw error;
     }
-
-    return uploadRes.json();
-  };
-
-  // 폼 초기화 함수
-  const resetForm = () => {
-    setName("");
-    setDescription("");
-    setPrice("");
-    setCategory("");
-    setSubCategory("");
-    setGender("");
-    setSizes([]);
-    setColors([]);
-    setOutfitImage(null);
-    setProductImage(null);
-    setAdditionalImages([]);
-    setOutfitPreview(null);
-    setProductPreview(null);
-    setAdditionalPreviews([]);
-    setErrors({});
-    setVariants([]);
-    setSelectedSize("");
-    setSelectedColor("");
-    setVariantStock(0);
   };
 
   // 폼 유효성 검사 함수
   const validateForm = () => {
     const newErrors: FormErrors = {};
-    let isValid = true;
 
-    if (!name) {
-      newErrors.name = "제품명을 입력해주세요.";
-      isValid = false;
-    }
-
-    if (!price || Number(price) <= 0) {
-      newErrors.price = "올바른 가격을 입력해주세요.";
-      isValid = false;
-    }
-
-    if (!category) {
-      newErrors.category = "카테고리를 선택해주세요.";
-      isValid = false;
-    }
-
-    if (!gender) {
-      newErrors.gender = "성별을 선택해주세요.";
-      isValid = false;
-    }
-
-    if (!description) {
-      newErrors.description = "제품 설명을 입력해주세요.";
-      isValid = false;
-    }
-
-    if (!subCategory) {
-      newErrors.subCategory = "서브 카테고리를 입력해주세요.";
-      isValid = false;
-    }
-
-    if (sizes.length === 0) {
-      newErrors.sizes = "최소 하나의 사이즈를 선택해주세요.";
-      isValid = false;
-    }
-
-    if (colors.length === 0) {
-      newErrors.colors = "최소 하나의 컬러를 추가해주세요.";
-      isValid = false;
-    }
+    if (!name) newErrors.name = "제품명을 입력해주세요.";
+    if (!description) newErrors.description = "설명을 입력해주세요.";
+    if (!price) newErrors.price = "가격을 입력해주세요.";
+    if (!category) newErrors.category = "카테고리를 선택해주세요.";
+    if (!subCategory) newErrors.subCategory = "서브카테고리를 입력해주세요.";
+    if (!gender) newErrors.gender = "성별을 선택해주세요.";
+    if (!colorName) newErrors.colors = "컬러를 입력해주세요.";
+    if (variants.length === 0)
+      newErrors.sizes = "최소 하나의 사이즈와 재고를 추가해주세요.";
+    if (!outfitImage || !productImage)
+      newErrors.images = "필수 이미지를 업로드해주세요.";
 
     setErrors(newErrors);
-    return isValid;
-  };
-
-  const moveImage = (dragIndex: number, hoverIndex: number) => {
-    setImages((prev) => {
-      const newImages = [...prev];
-      const draggedImage = newImages[dragIndex];
-      newImages.splice(dragIndex, 1);
-      newImages.splice(hoverIndex, 0, draggedImage);
-      return newImages;
-    });
+    return Object.keys(newErrors).length === 0;
   };
 
   // 이미지 미리보기 생성 함수
@@ -552,57 +526,61 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 재고 관리 섹션 추가 */}
-        <div className="space-y-4 mt-6">
-          <h3 className="text-lg font-medium">재고 관리</h3>
+        {/* 컬러 입력 섹션 */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">컬러 설정</h3>
           <div className="flex gap-4 items-end">
-            <Select
-              label="사이즈"
-              value={selectedSize}
-              onChange={(e) => setSelectedSize(e.target.value)}
-            >
-              {sizes.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {size}
-                </SelectItem>
-              ))}
-            </Select>
-
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                label="컬러명"
-                placeholder="예: 블랙"
-                value={colorName}
-                onChange={(e) => setColorName(e.target.value)}
-              />
-              <Input
-                type="color"
-                label="컬러"
-                value={colorCode}
-                onChange={(e) => setColorCode(e.target.value)}
-                className="w-24"
-              />
-            </div>
-
             <Input
-              type="number"
-              label="재고량"
-              value={variantStock.toString()}
-              onChange={(e) => setVariantStock(parseInt(e.target.value))}
-              min={0}
+              type="text"
+              label="컬러명"
+              placeholder="예: 블랙"
+              value={colorName}
+              onChange={(e) => setColorName(e.target.value)}
+              className="flex-1"
+              isDisabled={variants.length > 0} // 재고가 추가되면 컬러 변경 불가
             />
-
-            <Button onClick={handleAddVariant}>재고 추가</Button>
           </div>
+        </div>
 
-          {/* 추가된 재고 목록 */}
+        {/* 재고 관리 섹션 */}
+        {colorName && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">
+              {colorName} 사이즈/재고 관리
+            </h3>
+            <div className="flex gap-4 items-end">
+              <Select
+                label="사이즈"
+                value={selectedSize}
+                onChange={(e) => setSelectedSize(e.target.value)}
+              >
+                {sizes.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </Select>
+
+              <Input
+                type="number"
+                label="재고량"
+                value={variantStock.toString()}
+                onChange={(e) => setVariantStock(parseInt(e.target.value))}
+                min={0}
+              />
+
+              <Button onClick={handleAddVariant}>재고 추가</Button>
+            </div>
+          </div>
+        )}
+
+        {/* 재고 목록 테이블 */}
+        {variants.length > 0 && (
           <div className="mt-4">
             <table className="min-w-full">
               <thead>
                 <tr>
                   <th>사이즈</th>
-                  <th>컬러</th>
                   <th>재고량</th>
                   <th>작업</th>
                 </tr>
@@ -611,9 +589,6 @@ export default function AdminPage() {
                 {variants.map((variant, index) => (
                   <tr key={index}>
                     <td>{variant.sizeId}</td>
-                    <td>
-                      {colors.find((c) => c.code === variant.colorId)?.name}
-                    </td>
                     <td>{variant.stock}</td>
                     <td>
                       <Button
@@ -621,6 +596,10 @@ export default function AdminPage() {
                         color="danger"
                         onClick={() => {
                           setVariants(variants.filter((_, i) => i !== index));
+                          // 모든 재고가 삭제되면 컬러 수정 가능
+                          if (variants.length === 1) {
+                            setColorName("");
+                          }
                         }}
                       >
                         삭제
@@ -631,7 +610,7 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
 
         <Button
           type="submit"

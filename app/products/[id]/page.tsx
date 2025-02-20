@@ -33,11 +33,13 @@ interface AccordionProps {
 interface Product {
   id: number;
   name: string;
+  displayName: string;
   description: string;
   price: number;
   discountPrice: number | null;
   material: string;
   sizeInfo: string;
+  color: string;
   images: {
     id: number;
     url: string;
@@ -50,6 +52,7 @@ interface Product {
   relatedProducts: {
     id: string;
     name: string;
+    price: number;
     color: string;
     imageUrl: string;
   }[];
@@ -229,10 +232,12 @@ export default function ProductDetailPage({ params }: Props) {
 
             {/* 오른쪽 정보 섹션 (1/3) */}
             <div className="w-1/3 overflow-y-auto h-full pr-4 scrollbar-hide">
-              <div className="space-y-8">
+              <div className="space-y-8 mt-12">
                 <div className="space-y-4">
-                  <h1 className="text-lg">{product.name}</h1>
-                  <div className="space-y-2">
+                  <h1 className="text-lg font-semibold mb-2">
+                    {product.displayName}
+                  </h1>
+                  <div className="space-y-4">
                     <div className="flex gap-1 items-center">
                       {product.discountPrice && (
                         <span className="text-default-400 line-through text-sm">
@@ -246,12 +251,42 @@ export default function ProductDetailPage({ params }: Props) {
                         ).toLocaleString()}
                       </span>
                     </div>
+
+                    {/* 다른 컬러 섹션 */}
+                    {product.relatedProducts.length > 0 && (
+                      <div className="pt-4">
+                        <div className="flex flex-wrap gap-2">
+                          {product.relatedProducts.map((related) => (
+                            <Link
+                              key={related.id}
+                              href={`/products/${related.id}`}
+                              className="group relative"
+                            >
+                              <div className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden">
+                                <Image
+                                  src={related.imageUrl}
+                                  alt={`${related.name} - ${related.color}`}
+                                  width={64}
+                                  height={64}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  priority
+                                />
+                              </div>
+                              {/* 호버 시 나타나는 컬러명 */}
+                              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white text-[10px] px-2 py-1 rounded whitespace-nowrap">
+                                {related.color}
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-6">
                   <div className="space-y-4">
-                    <h3 className="text-sm font-medium">사이즈</h3>
+                    <h3 className="text-sm font-medium">size</h3>
                     <div className="flex flex-wrap gap-2">
                       {product.sizes.map((size) => {
                         const isOutOfStock = size.stock === 0;
@@ -319,35 +354,6 @@ export default function ProductDetailPage({ params }: Props) {
                       </div>
                     </Accordion>
                   </div>
-
-                  {/* 제품 설명 아코디언 다음에 추가 */}
-                  {product.relatedProducts.length > 0 && (
-                    <div className="pt-8 border-t">
-                      <h3 className="text-sm font-medium mb-4">다른 컬러</h3>
-                      <div className="grid grid-cols-3 gap-2">
-                        {product.relatedProducts.map((related) => (
-                          <Link
-                            key={related.id}
-                            href={`/products/${related.id}`}
-                            className="group"
-                          >
-                            <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2">
-                              <Image
-                                src={related.imageUrl}
-                                alt={`${related.name} - ${related.color}`}
-                                width={120}
-                                height={120}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                            </div>
-                            <p className="text-xs text-gray-600">
-                              {related.color}
-                            </p>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

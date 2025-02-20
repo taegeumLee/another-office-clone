@@ -3,16 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { Category, Gender } from "@prisma/client";
 export async function POST(req: Request) {
   const data = await req.json();
-  const {
-    name,
-    description,
-    price,
-    category,
-    subCategory,
-    gender,
-    variants,
-    colors,
-  } = data;
+  const { name, description, price, category, subCategory, gender, variants } =
+    data;
 
   // 1. 제품 기본 정보 생성
   const product = await prisma.product.create({
@@ -41,19 +33,15 @@ export async function POST(req: Request) {
     }
 
     // Color 확인/생성
-    let color = await prisma.color.findFirst({
-      where: { code: variant.colorId },
+    let color = await prisma.color.findUnique({
+      where: { id: variant.colorId },
     });
 
     if (!color) {
-      const colorName = colors.find(
-        (c: { code: string; name: string }) => c.code === variant.colorId
-      )?.name;
-
       color = await prisma.color.create({
         data: {
-          name: colorName || variant.colorId,
-          code: variant.colorId,
+          id: variant.colorId,
+          name: variant.colorId,
         },
       });
     }

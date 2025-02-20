@@ -50,24 +50,32 @@ export async function PUT(
     const id = await params.id;
     const data = await request.json();
 
-    // 제품 정보 업데이트
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        category: data.category as Category,
-        subCategory: data.subCategory,
-        gender: data.gender as Gender,
-      },
+    // 1. 현재 제품의 모든 variants를 가져옴
+    const currentVariants = await prisma.productVariant.findMany({
+      where: { productId: id },
     });
 
-    // variants 처리
+    // 2. 삭제될 variants 찾기 (현재 있지만 업데이트 데이터에는 없는 것들)
+    const variantsToDelete = currentVariants.filter(
+      (cv) => !data.variants.some((v: any) => v.id === cv.id)
+    );
+
+    // 3. variants 삭제
+    if (variantsToDelete.length > 0) {
+      await prisma.productVariant.deleteMany({
+        where: {
+          id: {
+            in: variantsToDelete.map((v) => v.id),
+          },
+        },
+      });
+    }
+
+    // 4. 나머지 variants 처리
     if (data.variants && data.variants.length > 0) {
       for (const variant of data.variants) {
         if (variant.id.startsWith("temp-")) {
-          // Size 확인/생성
+          // 새로운 variant 생성
           let size = await prisma.size.findUnique({
             where: { name: variant.size.name },
           });
@@ -78,21 +86,16 @@ export async function PUT(
             });
           }
 
-          // Color 확인/생성
-          let color = await prisma.color.findFirst({
-            where: { code: variant.color.code },
+          let color = await prisma.color.findUnique({
+            where: { name: variant.color.name },
           });
 
           if (!color) {
             color = await prisma.color.create({
-              data: {
-                name: variant.color.name,
-                code: variant.color.code,
-              },
+              data: { name: variant.color.name },
             });
           }
 
-          // 새로운 variant 생성
           await prisma.productVariant.create({
             data: {
               productId: id,
@@ -105,15 +108,36 @@ export async function PUT(
           // 기존 variant 업데이트
           await prisma.productVariant.update({
             where: { id: variant.id },
-            data: { stock: variant.stock },
+            data: {
+              stock: variant.stock,
+              // size와 color도 업데이트 가능하도록
+              size: {
+                connect: {
+                  name: variant.size.name,
+                },
+              },
+              color: {
+                connect: {
+                  name: variant.color.name,
+                },
+              },
+            },
           });
         }
       }
     }
 
-    // 최종 업데이트된 제품 정보 조회
-    const finalProduct = await prisma.product.findUnique({
+    // 5. 제품 기본 정보 업데이트
+    const updatedProduct = await prisma.product.update({
       where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        category: data.category as Category,
+        subCategory: data.subCategory,
+        gender: data.gender as Gender,
+      },
       include: {
         variants: {
           include: {
@@ -125,23 +149,10 @@ export async function PUT(
       },
     });
 
-    if (!finalProduct) {
-      return NextResponse.json(
-        { error: "Updated product not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, product: finalProduct });
+    return NextResponse.json(updatedProduct);
   } catch (error) {
-    console.error("Update error:", error);
-    return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
+    console.error("Product update error:", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }
 

@@ -30,13 +30,13 @@ export async function GET(
       return new NextResponse("상품을 찾을 수 없습니다", { status: 404 });
     }
 
-    // 같은 이름을 가진 다른 제품들 조회
+    // 같은 이름을 가진 다른 제품들 조회 (다른 컬러의 같은 제품)
     const relatedProducts = await prisma.product.findMany({
       where: {
-        name: product.name,
-        NOT: {
-          id: String(params.id),
-        },
+        AND: [
+          { name: product.name }, // 같은 이름
+          { NOT: { id: String(params.id) } }, // 현재 제품 제외
+        ],
       },
       include: {
         variants: {
@@ -56,17 +56,25 @@ export async function GET(
     // 클라이언트에 맞게 데이터 구조 변환
     const formattedProduct = {
       ...product,
+      displayName: `${product.name} (${
+        product.variants[0]?.color?.name ?? ""
+      })`,
       images: product.variants.flatMap((variant) => variant.images),
       sizes: product.variants.map((variant) => ({
         id: variant.sizeId,
         name: variant.size.name,
         stock: variant.stock,
       })),
+      color: product.variants[0]?.color?.name ?? "",
       relatedProducts: relatedProducts.map((p) => ({
         id: p.id,
         name: p.name,
-        color: p.variants[0]?.color?.name || "",
-        imageUrl: p.variants[0]?.images[0]?.url || "",
+        price: p.price,
+        color: p.variants[0]?.color?.name ?? "",
+        imageUrl:
+          p.variants[0]?.images.find((img) => img.type === "PRODUCT")?.url ||
+          p.variants[0]?.images.find((img) => img.type === "OUTFIT")?.url ||
+          "/images/default-product.jpg",
       })),
     };
 

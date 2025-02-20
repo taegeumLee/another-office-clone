@@ -89,8 +89,7 @@ model Size {
 
 model Color {
   id        String           @id @default(cuid())
-  name      String
-  code      String
+  name      String           @unique
   products  ProductVariant[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
@@ -98,7 +97,7 @@ model Color {
 
 model Order {
   id              String      @id @default(cuid())
-  user            User        @relation(fields: [userId], references: [id])
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          String
   items           OrderItem[]
   status          OrderStatus @default(PENDING)
@@ -115,9 +114,9 @@ model Order {
 
 model OrderItem {
   id        String  @id @default(cuid())
-  order     Order   @relation(fields: [orderId], references: [id])
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId   String
-  product   Product @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
   quantity  Int
   size      String
@@ -136,9 +135,9 @@ model Cart {
 
 model CartItem {
   id        String  @id @default(cuid())
-  cart      Cart    @relation(fields: [cartId], references: [id])
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
   cartId    String
-  product   Product @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId String
   quantity  Int
   size      String
@@ -156,9 +155,9 @@ model Wishlist {
 
 model WishlistItem {
   id         String   @id @default(cuid())
-  wishlist   Wishlist @relation(fields: [wishlistId], references: [id])
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
   wishlistId String
-  product    Product  @relation(fields: [productId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId  String
 }
 
